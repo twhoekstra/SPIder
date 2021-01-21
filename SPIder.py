@@ -31,9 +31,49 @@ def setup(arduino):
     global DACisSetUp
     DACisSetUp = True
         
+def fastWrite(voltage, DAC='A'): 
+    # Ulgy code that should run faster
+    # Defaults to DAC A, Clock frequency in Hz
+    assert voltage <= 5, 'The requested voltage out is too high'
+    assert DAC == 'A' or DAC == 'B', 'Please input as string either A or B'
+    assert DACisSetUp , 'Please set up the DAC first'
+
+    # **DETERMINE CORRECT DAC SETTINGS**
+    # Set to 0 for DAC A. Set to 1 for DAC B
+    gain_select = 1
+    if voltage > 2.04975: gain_select = 0
     
+    # Set to 1 for unity gain. Set to 0 for gain = 2.
+    dac_select = 0
+    if DAC == 'B': dac_select = 1
     
-def write(voltage, DAC='A', freq=50): 
+    # **CALCULATE OUTPUT SIGNAL**
+    # Max 4095 --> 2.04975V
+    signal = int(voltage*4095/(2.04975*(2-gain_select)) )
+    
+    # Generate config bits and write full datastream
+    config = str(dac_select)+'0'+str(gain_select)+'1'
+    data = format(signal, '012b')
+    data = config + data
+    
+    # Select DAC Chip
+    cs.write(0)
+    #time.sleep(.1)    
+    
+    # Send
+    for ii in range(16):
+        mosi.write(int(data[ii]))   # Send single bit
+        #time.sleep(1/freq*.5)
+        sck.write(1)                # Clock HIGH
+        #time.sleep(1/freq*.5)
+        sck.write(0)                # Clock LOW
+    
+    # Deselect DAC Chip
+    #time.sleep(.1)  
+    cs.write(1)
+    return
+    
+def write(voltage, DAC='A', freq=18): 
     # Overkill frequency to make sure this runs as fast as possible
     # Defaults to DAC A, Clock frequency in Hz
     assert voltage <= 5, 'The requested voltage out is too high'
